@@ -9,15 +9,30 @@ fn main() {
 
 fn delete_files(path: PathBuf) {
     if path.is_file() {
-        fs::remove_file(path).unwrap();
+        let metadata = fs::metadata(path.clone()).unwrap();
+        let mut perms = metadata.permissions();
+        if perms.readonly() {
+            perms.set_readonly(false);
+            fs::set_permissions(path.clone(), perms).unwrap();
+        }
+        match fs::remove_file(path.clone()) {
+            Ok(_) => {},
+            Err(err) => panic!("{}: {}", path.display(), err.kind()),
+        }
     } else {
         let folder = path.clone();
         fs::read_dir(path).unwrap()
             .par_bridge()
             .for_each(|entry| {
-                let entry = entry.unwrap().path();
-                delete_files(entry);
+                delete_files(entry.unwrap().path());
             });
+
+        let metadata = fs::metadata(folder.clone()).unwrap();
+        let mut perms = metadata.permissions();
+        if perms.readonly() {
+            perms.set_readonly(false);
+            fs::set_permissions(folder.clone(), perms).unwrap();
+        }
         fs::remove_dir(folder).unwrap();
     }
 }
